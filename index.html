@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Arenda 3D - Horror</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+        canvas { display: block; }
+
+        /* Ограничение зрения (Виньетка) */
+        #vision-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, transparent 10%, rgba(0,0,0,0.95) 70%);
+            pointer-events: none; /* Чтобы можно было нажимать сквозь него */
+            display: none; /* Скрыто, пока не прочитаем правила */
+        }
+
+        /* Экран с правилами (Бумажка) */
+        #rules-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        #paper {
+            background: #f0e68c;
+            padding: 30px;
+            width: 80%;
+            max-width: 400px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            transform: rotate(-2deg);
+            border: 1px solid #d4c578;
+        }
+
+        h2 { text-align: center; color: #333; margin-top: 0; }
+        p { color: #444; line-height: 1.5; font-size: 16px; }
+
+        #start-btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background: #333;
+            color: white;
+            border: none;
+            margin-top: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        /* Джойстик */
+        #joystick-container {
+            position: fixed;
+            bottom: 50px;
+            left: 50px;
+            width: 100px;
+            height: 100px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            display: none;
+        }
+        #joystick {
+            width: 50px;
+            height: 50px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 50%;
+            position: absolute;
+            top: 25px;
+            left: 25px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="rules-overlay">
+        <div id="paper">
+            <h2>ИНСТРУКЦИЯ</h2>
+            <p>1. Не оборачивайся на звуки в пустой комнате.</p>
+            <p>2. Если телевизор включится сам — не смотри в экран.</p>
+            <p>3. Твое зрение ограничено. Тьма забирает всё.</p>
+            <button id="start-btn">ПОНЯТНО (ВЫЙТИ)</button>
+        </div>
+    </div>
+
+    <div id="vision-overlay"></div>
+
+    <div id="joystick-container">
+        <div id="joystick"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, player;
+        let gameStarted = false;
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050505);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Создаем стул (куб для примера)
+            const chairGeo = new THREE.BoxGeometry(1, 1.5, 1);
+            const chairMat = new THREE.MeshPhongMaterial({ color: 0x442200 });
+            const chair = new THREE.Mesh(chairGeo, chairMat);
+            chair.position.set(0, 0.75, -5);
+            scene.add(chair);
+
+            // Пол
+            const floorGeo = new THREE.PlaneGeometry(20, 20);
+            const floorMat = new THREE.MeshPhongMaterial({ color: 0x111111 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            scene.add(floor);
+
+            // Слабый свет вокруг игрока (вместо фонарика)
+            const light = new THREE.PointLight(0xffffff, 0.5, 10);
+            scene.add(light);
+            
+            camera.position.z = 5;
+            camera.position.y = 1.7; // Рост игрока
+
+            function animate() {
+                requestAnimationFrame(animate);
+                if(gameStarted) {
+                    light.position.copy(camera.position);
+                }
+                renderer.render(scene, camera);
+            }
+            animate();
+        }
+
+        // Логика кнопки "Выйти из бумаги"
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('rules-overlay').style.display = 'none';
+            document.getElementById('vision-overlay').style.display = 'block';
+            document.getElementById('joystick-container').style.display = 'block';
+            gameStarted = true;
+            console.log("Игра началась!");
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        init();
+    </script>
+</body>
+</html>
