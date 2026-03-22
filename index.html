@@ -3,145 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Arenda 3D: 3 AM SURVIVAL</title>
+    <title>Arenda 3D: Light & Closet</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: 'Courier New', monospace; }
+        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: sans-serif; }
         canvas { display: block; }
         
-        /* Интерфейс */
-        #ui-top { position: fixed; top: 20px; width: 100%; text-align: center; color: white; z-index: 100; pointer-events: none; }
-        #clock { font-size: 32px; text-shadow: 0 0 10px red; }
-        
-        /* Зоны управления */
-        #move-zone { position: fixed; bottom: 0; left: 0; width: 50%; height: 70%; z-index: 20; }
-        #look-zone { position: fixed; bottom: 0; right: 0; width: 50%; height: 100%; z-index: 10; }
-        
-        #joy-bound { position: absolute; bottom: 50px; left: 50px; width: 100px; height: 100px; background: rgba(255,255,255,0.1); border-radius: 50%; display: none; border: 1px solid #fff3; }
-        #joy-stick { position: absolute; top: 25px; left: 25px; width: 50px; height: 50px; background: rgba(255,0,0,0.4); border-radius: 50%; }
+        /* Надписи на экране */
+        #info-layer { position: fixed; top: 20px; width: 100%; text-align: center; color: white; z-index: 100; pointer-events: none; }
+        #object-name { font-size: 24px; color: yellow; font-weight: bold; margin-top: 10px; text-shadow: 2px 2px 5px black; }
+        #timer-text { font-size: 18px; color: red; display: none; }
 
-        /* Кнопки действий */
-        .btn-action { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); padding: 20px 40px; background: #800; color: white; border: 2px solid white; display: none; z-index: 150; font-weight: bold; }
+        /* Управление */
+        #move-zone { position: fixed; bottom: 0; left: 0; width: 50%; height: 100%; z-index: 20; }
+        #look-zone { position: fixed; bottom: 0; right: 0; width: 50%; height: 100%; z-index: 10; }
+        #joy-bound { position: absolute; bottom: 50px; left: 50px; width: 80px; height: 80px; background: rgba(255,255,255,0.2); border-radius: 50%; display: none; }
+        #joy-stick { position: absolute; top: 20px; left: 20px; width: 40px; height: 40px; background: #fff; border-radius: 50%; }
+
+        /* Кнопки */
+        .btn { position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%); padding: 15px 30px; background: #800; color: white; border: 2px solid #fff; display: none; z-index: 150; border-radius: 10px; }
         
-        /* Экран смерти/победы */
-        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; display: none; justify-content: center; align-items: center; z-index: 1000; flex-direction: column; color: white; text-align: center; }
-        
-        #glitch-msg { position: fixed; top: 30%; width: 100%; text-align: center; color: red; font-size: 20px; display: none; z-index: 50; }
+        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; display: none; justify-content: center; align-items: center; z-index: 1000; flex-direction: column; color: white; }
     </style>
 </head>
 <body>
 
-    <div id="ui-top">
-        <div id="clock">12:00 AM</div>
-        <div id="status">Выживи до 03:00 AM</div>
+    <div id="info-layer">
+        <div id="timer-text">РЕЗЕРВНЫЙ СВЕТ: 10 СЕК!</div>
+        <div id="object-name">Осматривайтесь...</div>
     </div>
 
-    <div id="glitch-msg">YOU WILL DIE...</div>
-    
     <div id="move-zone"><div id="joy-bound"><div id="joy-stick"></div></div></div>
     <div id="look-zone"></div>
 
-    <button id="hide-btn" class="btn-action">СПРЯТАТЬСЯ</button>
-    <button id="exit-btn" class="btn-action">ВЫЙТИ</button>
+    <button id="action-btn" class="btn">ДЕЙСТВИЕ</button>
 
     <div id="overlay">
-        <h1 id="over-title"></h1>
-        <p id="over-desc"></p>
-        <button onclick="location.reload()" style="background:white; color:black; padding:10px 20px;">ЕЩЕ РАЗ</button>
+        <h1 id="over-title">КОНЕЦ ИГРЫ</h1>
+        <button onclick="location.reload()" style="padding: 10px 20px;">ИГРАТЬ СНОВА</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        let scene, camera, renderer, monster, light;
-        let gameActive = true, isHidden = false, timeLeft = 180; // 3 минуты
-        let moveJoy = {x:0, y:0}, isMoving = false;
-        let rotY = 0, rotX = 0;
+        let scene, camera, renderer, mainLight, backupLight, monster;
+        let isMoving = false, isHidden = false, isBlackout = false, gameActive = true;
+        let moveJoy = {x:0, y:0}, rotY = 0, rotX = 0;
         let objects = {};
 
         function init() {
             scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x333333); // Теперь не темно!
+
             camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
             camera.rotation.order = 'YXZ';
-            
+
             renderer = new THREE.WebGLRenderer({antialias: true});
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            scene.add(new THREE.AmbientLight(0xffffff, 0.05));
-            light = new THREE.PointLight(0xffffff, 1.2, 15);
-            scene.add(light);
+            // СВЕТ (Сразу светло)
+            mainLight = new THREE.PointLight(0xffffff, 1.5, 30);
+            mainLight.position.set(0, 5, 0);
+            scene.add(mainLight);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 
-            // Комната
-            const room = new THREE.Mesh(new THREE.BoxGeometry(12, 6, 12), new THREE.MeshPhongMaterial({color: 0x222222, side: THREE.BackSide}));
-            scene.add(room);
+            backupLight = new THREE.PointLight(0xff0000, 0, 15);
+            scene.add(backupLight);
 
-            // Пол
-            const floor = new THREE.Mesh(new THREE.PlaneGeometry(12,12), new THREE.MeshPhongMaterial({color: 0x111111}));
-            floor.rotation.x = -Math.PI/2; floor.position.y = -3; scene.add(floor);
+            // КОМНАТА
+            const roomGeo = new THREE.BoxGeometry(10, 6, 10);
+            const roomMat = new THREE.MeshPhongMaterial({color: 0x888888, side: THREE.BackSide});
+            scene.add(new THREE.Mesh(roomGeo, roomMat));
 
-            // Объекты (названия для проверки коллизий)
-            function addObj(w,h,d, x,y,z, col, name) {
+            // ПОЛ
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(10,10), new THREE.MeshPhongMaterial({color: 0x444444}));
+            floor.rotation.x = -Math.PI/2; floor.position.y = -3;
+            scene.add(floor);
+
+            // ПРЕДМЕТЫ
+            function createObj(w,h,d, x,y,z, col, name) {
                 let m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshPhongMaterial({color: col}));
                 m.position.set(x,y,z); scene.add(m); objects[name] = m;
             }
 
-            addObj(3, 1.5, 5, -4, -2.2, -3, 0x000044, 'bed'); // Кровать
-            addObj(2, 5, 1.5, 4.5, -0.5, 3, 0x221100, 'closet'); // Шкаф
-            addObj(1.5, 1, 0.2, 0, 0, -5.9, 0x111111, 'tv'); // ТВ
-            addObj(1.5, 4, 0.1, 0, -1, 5.9, 0x332211, 'door'); // Дверь
+            createObj(1.5, 4, 1.2, 4, -1, 0, 0x3d2b1f, 'ШКАФ'); // Большой коричневый шкаф
+            createObj(1.2, 0.8, 0.1, 0, 0, -4.9, 0x111111, 'ТЕЛЕВИЗОР');
+            createObj(0.4, 0.6, 0.1, -4.9, 1, 0, 0xffff00, 'ЩИТОК');
 
-            // Монстр (Глич)
-            monster = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 0.5), new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true}));
+            // МОНСТР (Глич) - спрятан до поры
+            monster = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2, 0.2), new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true}));
             monster.position.set(0, -10, 0); scene.add(monster);
 
-            camera.position.set(0, 0, 0);
+            camera.position.set(0, 0, 3);
             animate();
-            startGameTimer();
-            setTimeout(anomalyLoop, 10000);
+            setInterval(randomEvent, 15000);
         }
 
-        // Таймер игры
-        function startGameTimer() {
-            let timer = setInterval(() => {
-                if(!gameActive) { clearInterval(timer); return; }
-                timeLeft--;
-                
-                // Обновление часов
-                let hours = 12 + Math.floor((180 - timeLeft) / 60);
-                if (hours > 12) hours -= 12;
-                document.getElementById('clock').innerText = `0${hours}:00 AM`.replace('012', '12');
-
-                if(timeLeft <= 0) {
-                    gameActive = false;
-                    showOverlay("ТЫ ВЫЖИЛ!", "Сосед ушел на работу. Ты в безопасности... пока что.");
-                }
-            }, 1000);
+        function randomEvent() {
+            if(!gameActive || isBlackout || isHidden) return;
+            if(Math.random() < 0.5) triggerBlackout();
         }
 
-        // Логика Аномалий
-        function anomalyLoop() {
-            if(!gameActive) return;
-            let event = Math.random();
-            
-            if(event < 0.4) { // СТУК В ДВЕРЬ
-                document.getElementById('glitch-msg').innerText = "КТО-ТО СТУЧИТ В ДВЕРЬ...";
-                document.getElementById('glitch-msg').style.display = 'block';
-                
-                setTimeout(() => {
-                    if(!isHidden) {
-                        spawnMonster();
-                    } else {
-                        document.getElementById('glitch-msg').innerText = "ОНО УШЛО...";
-                        setTimeout(() => document.getElementById('glitch-msg').style.display = 'none', 2000);
-                    }
-                }, 5000);
-            }
-            
-            setTimeout(anomalyLoop, 15000 - (180 - timeLeft)*50); // Становится чаще
-        }
-
-        function spawnMonster() {
-            monster.position.set(0, -1, 5);
-            document.getElementById('glitch-msg').innerText = "ОН ТЕБЯ ВИДИТ!";
+        function triggerBlackout() {
+            isBlackout = true;
+            mainLight.intensity = 0;
+            backupLight.intensity = 1.5;
+            document.getElementById('timer-text').style.display = 'block';
+            setTimeout(() => { if(isBlackout) endGame("СВЕТ ВЫРУБИЛСЯ НАВСЕГДА..."); }, 10000);
         }
 
         function animate() {
@@ -149,101 +116,77 @@
             requestAnimationFrame(animate);
 
             if(!isHidden) {
-                // Движение с учетом поворота головы
                 let dirX = Math.sin(rotY) * moveJoy.y + Math.cos(rotY) * moveJoy.x;
                 let dirZ = Math.cos(rotY) * moveJoy.y - Math.sin(rotY) * moveJoy.x;
                 camera.position.x -= dirX * 0.08;
                 camera.position.z -= dirZ * 0.08;
             }
 
-            // Границы комнаты
-            camera.position.x = Math.max(-5, Math.min(5, camera.position.x));
-            camera.position.z = Math.max(-5, Math.min(5, camera.position.z));
+            // Ограничение стен
+            camera.position.x = Math.max(-4.5, Math.min(4.5, camera.position.x));
+            camera.position.z = Math.max(-4.5, Math.min(4.5, camera.position.z));
 
-            // Проверка кнопок Прятаться
-            let distBed = camera.position.distanceTo(objects.bed.position);
-            let distCloset = camera.position.distanceTo(objects.closet.position);
+            // Проверка предметов
+            let found = "Осматривайтесь...";
+            let btn = document.getElementById('action-btn');
+            btn.style.display = 'none';
 
-            if(!isHidden && (distBed < 2 || distCloset < 2)) {
-                document.getElementById('hide-btn').style.display = 'block';
-                document.getElementById('hide-btn').onclick = () => hide(distBed < 2 ? 'bed' : 'closet');
-            } else if (!isHidden) {
-                document.getElementById('hide-btn').style.display = 'none';
+            for(let name in objects) {
+                if(camera.position.distanceTo(objects[name].position) < 2) {
+                    found = "ЭТО " + name;
+                    if(name === 'ШКАФ' && !isHidden) {
+                        btn.style.display = 'block'; btn.innerText = "ЗАЛЕЗТЬ В ШКАФ";
+                        btn.onclick = () => { isHidden = true; camera.position.set(3.8, -1, 0); };
+                    }
+                    if(name === 'ЩИТОК' && isBlackout) {
+                        btn.style.display = 'block'; btn.innerText = "ПОЧИНИТЬ СВЕТ";
+                        btn.onclick = () => { isBlackout = false; mainLight.intensity = 1.5; backupLight.intensity = 0; document.getElementById('timer-text').style.display = 'none'; };
+                    }
+                }
+            }
+            if(isHidden) {
+                found = "ВЫ В ШКАФУ";
+                btn.style.display = 'block'; btn.innerText = "ВЫЙТИ";
+                btn.onclick = () => { isHidden = false; camera.position.set(3, 0, 0); };
             }
 
-            // ИИ Монстра
-            if(monster.position.y > -5) {
-                monster.lookAt(camera.position);
-                monster.translateZ(0.12);
-                if(monster.position.distanceTo(camera.position) < 1) gameOver();
-            }
-
+            document.getElementById('object-name').innerText = found;
             camera.rotation.set(rotX, rotY, 0);
-            light.position.copy(camera.position);
+            backupLight.position.copy(camera.position);
             renderer.render(scene, camera);
         }
 
-        function hide(type) {
-            isHidden = true;
-            document.getElementById('hide-btn').style.display = 'none';
-            document.getElementById('exit-btn').style.display = 'block';
-            if(type === 'bed') camera.position.y = -2.5; // Под кровать
-            else camera.position.set(4, -1, 3); // В шкаф
-        }
-
-        document.getElementById('exit-btn').onclick = () => {
-            isHidden = false;
-            camera.position.y = 0;
-            document.getElementById('exit-btn').style.display = 'none';
-        };
-
-        // ВРАЩЕНИЕ КАМЕРЫ (Правая часть)
-        document.getElementById('look-zone').addEventListener('touchmove', (e) => {
+        // ВРАЩЕНИЕ КАМЕРЫ (Право)
+        let lastX, lastY;
+        document.getElementById('look-zone').ontouchmove = (e) => {
             let t = e.touches[0];
-            if (!this.lastX) { this.lastX = t.clientX; this.lastY = t.clientY; return; }
-            let dx = t.clientX - this.lastX;
-            let dy = t.clientY - this.lastY;
-            rotY -= dx * 0.005;
-            rotX -= dy * 0.005;
-            rotX = Math.max(-1.4, Math.min(1.4, rotX));
-            // Ограничение взгляда вниз если спрятан
-            if(isHidden) rotX = Math.max(-0.5, rotX);
-            this.lastX = t.clientX; this.lastY = t.clientY;
-        });
-        document.getElementById('look-zone').addEventListener('touchend', () => { this.lastX = null; });
+            if(lastX) {
+                rotY -= (t.clientX - lastX) * 0.007;
+                rotX -= (t.clientY - lastY) * 0.007;
+                rotX = Math.max(-1.4, Math.min(1.4, rotX));
+            }
+            lastX = t.clientX; lastY = t.clientY;
+        };
+        document.getElementById('look-zone').ontouchend = () => { lastX = null; };
 
-        // ДЖОЙСТИК (Левая часть)
+        // ДЖОЙСТИК (Лево)
         const jBound = document.getElementById('joy-bound');
         const jStick = document.getElementById('joy-stick');
-        document.getElementById('move-zone').addEventListener('touchstart', (e) => {
+        document.getElementById('move-zone').ontouchstart = (e) => {
             jBound.style.display = 'block';
-            jBound.style.left = e.touches[0].clientX - 50 + 'px';
-            jBound.style.bottom = (window.innerHeight - e.touches[0].clientY - 50) + 'px';
-        });
-        document.getElementById('move-zone').addEventListener('touchmove', (e) => {
-            let rect = jBound.getBoundingClientRect();
-            let t = e.touches[0];
-            let dx = (t.clientX - (rect.left + 50)) / 50;
-            let dy = (t.clientY - (rect.top + 50)) / 50;
-            let dist = Math.sqrt(dx*dx + dy*dy);
-            if(dist > 1) { dx/=dist; dy/=dist; }
-            jStick.style.transform = `translate(${dx*30}px, ${dy*30}px)`;
-            moveJoy = {x: dx, y: dy};
-        });
-        document.getElementById('move-zone').addEventListener('touchend', () => {
-            jBound.style.display = 'none'; moveJoy = {x:0, y:0};
-        });
+            jBound.style.left = e.touches[0].clientX - 40 + 'px';
+            jBound.style.top = e.touches[0].clientY - 40 + 'px';
+        };
+        document.getElementById('move-zone').ontouchmove = (e) => {
+            let t = e.touches[0], rect = jBound.getBoundingClientRect();
+            let dx = (t.clientX - (rect.left + 40))/40, dy = (t.clientY - (rect.top + 40))/40;
+            let d = Math.sqrt(dx*dx+dy*dy); if(d>1){dx/=d;dy/=d;}
+            jStick.style.transform = `translate(${dx*20}px,${dy*20}px)`;
+            moveJoy = {x:dx, y:dy};
+        };
+        document.getElementById('move-zone').ontouchend = () => { jBound.style.display='none'; moveJoy={x:0,y:0}; };
 
-        function gameOver() {
-            gameActive = false;
-            showOverlay("ТЫ ПРОИГРАЛ", "Глич нашел тебя. Теперь ты часть его кода.");
-        }
-
-        function showOverlay(title, desc) {
-            document.getElementById('overlay').style.display = 'flex';
-            document.getElementById('over-title').innerText = title;
-            document.getElementById('over-desc').innerText = desc;
-        }
+        function endGame(m) { gameActive = false; document.getElementById('overlay').style.display='flex'; alert(m); }
 
         init();
     </script>
