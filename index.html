@@ -3,165 +3,168 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Arenda 3D - Horror</title>
+    <title>Arenda 3D: The Glitch</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: 'Courier New', Courier, monospace; }
         canvas { display: block; }
-
-        /* Ограничение зрения (Виньетка) */
-        #vision-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle, transparent 10%, rgba(0,0,0,0.95) 70%);
-            pointer-events: none; /* Чтобы можно было нажимать сквозь него */
-            display: none; /* Скрыто, пока не прочитаем правила */
+        #vision {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, transparent 15%, rgba(0,0,0,0.98) 75%);
+            pointer-events: none; display: none; z-index: 10;
         }
-
-        /* Экран с правилами (Бумажка) */
-        #rules-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 100;
+        #rules-overlay, #death-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,1); display: flex; justify-content: center; align-items: center; z-index: 100;
         }
-
-        #paper {
-            background: #f0e68c;
-            padding: 30px;
-            width: 80%;
-            max-width: 400px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            transform: rotate(-2deg);
-            border: 1px solid #d4c578;
-        }
-
-        h2 { text-align: center; color: #333; margin-top: 0; }
-        p { color: #444; line-height: 1.5; font-size: 16px; }
-
-        #start-btn {
-            display: block;
-            width: 100%;
-            padding: 15px;
-            background: #333;
-            color: white;
-            border: none;
-            margin-top: 20px;
-            cursor: pointer;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-
-        /* Джойстик */
-        #joystick-container {
-            position: fixed;
-            bottom: 50px;
-            left: 50px;
-            width: 100px;
-            height: 100px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 50%;
-            display: none;
-        }
-        #joystick {
-            width: 50px;
-            height: 50px;
-            background: rgba(255,255,255,0.3);
-            border-radius: 50%;
-            position: absolute;
-            top: 25px;
-            left: 25px;
-        }
+        #paper { background: #e0d8c0; padding: 20px; width: 85%; max-width: 400px; border: 2px solid #555; box-shadow: 10px 10px 0px #222; }
+        h2 { color: #800; text-align: center; }
+        p { font-size: 14px; color: #111; line-height: 1.3; }
+        button { width: 100%; padding: 15px; background: #800; color: #fff; border: none; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        
+        #joy-bound { position: fixed; bottom: 40px; left: 40px; width: 100px; height: 100px; background: rgba(255,255,255,0.1); border-radius: 50%; display: none; z-index: 20; border: 1px solid #fff2; }
+        #joy-stick { position: absolute; top: 25px; left: 25px; width: 50px; height: 50px; background: rgba(255,0,0,0.3); border-radius: 50%; }
+        
+        #glitch-text { position: fixed; top: 40%; width: 100%; text-align: center; color: white; font-size: 18px; display: none; z-index: 200; }
     </style>
 </head>
 <body>
 
     <div id="rules-overlay">
         <div id="paper">
-            <h2>ИНСТРУКЦИЯ</h2>
-            <p>1. Не оборачивайся на звуки в пустой комнате.</p>
-            <p>2. Если телевизор включится сам — не смотри в экран.</p>
-            <p>3. Твое зрение ограничено. Тьма забирает всё.</p>
-            <button id="start-btn">ПОНЯТНО (ВЫЙТИ)</button>
+            <h2>ПРАВИЛА ВЫЖИВАНИЯ</h2>
+            <p>1. Включился ТВ? БЕГИ В ШКАФ, иначе выйдет Глич.</p>
+            <p>2. Стук в окно? НЕ СМОТРИ ТУДА, или окно выбьют.</p>
+            <p>3. Сосед (Глич) стучит в дверь? У тебя 5 секунд, чтобы спрятаться в шкафу.</p>
+            <p>4. Если Глич идет за тобой — не пытайся просто убежать, он станет быстрее.</p>
+            <button id="start-btn">Я ПРИНИМАЮ СМЕРТЬ</button>
         </div>
     </div>
 
-    <div id="vision-overlay"></div>
-
-    <div id="joystick-container">
-        <div id="joystick"></div>
+    <div id="death-screen" style="display:none; background: #000; flex-direction: column;">
+        <h1 style="color: #600; font-size: 14px;" id="death-msg">...</h1>
+        <button onclick="location.reload()" style="width: auto; padding: 10px 40px;">НАЧАТЬ ЗАНОВО</button>
     </div>
+
+    <div id="glitch-text">You will die...</div>
+    <div id="vision"></div>
+    <div id="joy-bound"><div id="joy-stick"></div></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        let scene, camera, renderer, player;
-        let gameStarted = false;
+        let scene, camera, renderer, light, monster, tv;
+        let joyPos = {x:0, y:0}, isMoving = false, gameActive = false;
+        let monsterSpeed = 0.02;
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x050505);
-
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+            scene.background = new THREE.Color(0x000000);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({antialias: true});
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // Создаем стул (куб для примера)
-            const chairGeo = new THREE.BoxGeometry(1, 1.5, 1);
-            const chairMat = new THREE.MeshPhongMaterial({ color: 0x442200 });
-            const chair = new THREE.Mesh(chairGeo, chairMat);
-            chair.position.set(0, 0.75, -5);
-            scene.add(chair);
-
-            // Пол
-            const floorGeo = new THREE.PlaneGeometry(20, 20);
-            const floorMat = new THREE.MeshPhongMaterial({ color: 0x111111 });
-            const floor = new THREE.Mesh(floorGeo, floorMat);
-            floor.rotation.x = -Math.PI / 2;
-            scene.add(floor);
-
-            // Слабый свет вокруг игрока (вместо фонарика)
-            const light = new THREE.PointLight(0xffffff, 0.5, 10);
+            const ambient = new THREE.AmbientLight(0xffffff, 0.05);
+            scene.add(ambient);
+            light = new THREE.PointLight(0xff0000, 1.5, 10);
             scene.add(light);
-            
-            camera.position.z = 5;
-            camera.position.y = 1.7; // Рост игрока
 
-            function animate() {
-                requestAnimationFrame(animate);
-                if(gameStarted) {
-                    light.position.copy(camera.position);
-                }
-                renderer.render(scene, camera);
-            }
+            // МИР
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(40,40), new THREE.MeshPhongMaterial({color:0x111111}));
+            floor.rotation.x = -Math.PI/2; scene.add(floor);
+
+            // ТЕЛЕВИЗОР
+            const tvGeo = new THREE.BoxGeometry(2, 1.5, 0.5);
+            const tvMat = new THREE.MeshPhongMaterial({color: 0x222222});
+            tv = new THREE.Mesh(tvGeo, tvMat);
+            tv.position.set(0, 1, -8);
+            scene.add(tv);
+
+            // ШКАФ (Зона безопасности)
+            const closet = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 1), new THREE.MeshPhongMaterial({color: 0x221100}));
+            closet.position.set(5, 1.5, -2);
+            scene.add(closet);
+
+            // МОНСТР (Глич)
+            const mGeo = new THREE.BoxGeometry(0.8, 1.8, 0.3);
+            const mMat = new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true});
+            monster = new THREE.Mesh(mGeo, mMat);
+            monster.position.set(0, -5, -8); // Спрятан под полом
+            scene.add(monster);
+
+            camera.position.set(0, 1.7, 2);
             animate();
+            
+            // Через 5 секунд ТВ "включается" и Глич выходит
+            setTimeout(spawnMonster, 5000);
         }
 
-        // Логика кнопки "Выйти из бумаги"
-        document.getElementById('start-btn').addEventListener('click', () => {
+        function spawnMonster() {
+            if(!gameActive) return;
+            monster.position.y = 1;
+            document.getElementById('glitch-text').style.display = 'block';
+        }
+
+        function animate() {
+            if(!gameActive) return;
+            requestAnimationFrame(animate);
+
+            // Движение игрока
+            if (isMoving) {
+                camera.position.x += joyPos.x * 0.1;
+                camera.position.z += joyPos.y * 0.1;
+            }
+
+            // Логика монстра
+            if(monster.position.y > 0) {
+                let dist = camera.position.distanceTo(monster.position);
+                // Если игрок далеко, монстр ускоряется
+                let speedBoost = dist > 5 ? 0.005 : 0;
+                monsterSpeed += speedBoost;
+                
+                monster.lookAt(camera.position);
+                monster.translateZ(monsterSpeed);
+
+                // Если поймал
+                if(dist < 1.2) {
+                    gameOver();
+                }
+            }
+
+            light.position.copy(camera.position);
+            renderer.render(scene, camera);
+        }
+
+        function gameOver() {
+            gameActive = false;
+            document.body.style.filter = "invert(1) contrast(200%)"; // Глич-эффект
+            setTimeout(() => {
+                document.getElementById('death-screen').style.display = 'flex';
+                document.getElementById('death-msg').innerText = "ДЛЯ НЕГО ТЫ ПРОСТО ТУПАЯ ИГРУШКА";
+                document.body.style.filter = "none";
+            }, 500);
+        }
+
+        // Джойстик (как в прошлом коде)
+        const jBound = document.getElementById('joy-bound');
+        const jStick = document.getElementById('joy-stick');
+        jBound.addEventListener('touchstart', () => isMoving = true);
+        jBound.addEventListener('touchmove', (e) => {
+            const rect = jBound.getBoundingClientRect();
+            const t = e.touches[0];
+            let dx = (t.clientX - rect.left - 50) / 50;
+            let dy = (t.clientY - rect.top - 50) / 50;
+            jStick.style.transform = `translate(${dx*30}px, ${dy*30}px)`;
+            joyPos.x = dx; joyPos.y = dy;
+        });
+        jBound.addEventListener('touchend', () => { isMoving = false; jStick.style.transform = 'translate(0,0)'; });
+
+        document.getElementById('start-btn').onclick = () => {
             document.getElementById('rules-overlay').style.display = 'none';
-            document.getElementById('vision-overlay').style.display = 'block';
-            document.getElementById('joystick-container').style.display = 'block';
-            gameStarted = true;
-            console.log("Игра началась!");
-        });
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        init();
+            document.getElementById('vision').style.display = 'block';
+            jBound.style.display = 'block';
+            gameActive = true;
+            init();
+        };
     </script>
 </body>
 </html>
