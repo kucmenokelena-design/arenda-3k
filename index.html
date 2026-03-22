@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Arenda 3D: Roblox Style Controls</title>
+    <title>Arenda 3D: The Glitch Hunter</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: sans-serif; }
         canvas { display: block; }
@@ -11,31 +11,23 @@
         #clock { font-size: 24px; color: #f00; font-weight: bold; }
         #alert { font-size: 18px; color: yellow; background: rgba(0,0,0,0.6); display: none; padding: 5px; border-radius: 5px; }
         
-        /* Зоны тача */
+        /* Эффект шкафа (прорези) */
+        #closet-view { position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: repeating-linear-gradient(to bottom, transparent, transparent 40px, rgba(0,0,0,0.9) 40px, rgba(0,0,0,0.9) 80px); 
+            display: none; z-index: 80; pointer-events: none; border: 20px solid #3d2b1f; }
+
         #move-zone { position: fixed; bottom: 0; left: 0; width: 50%; height: 100%; z-index: 20; }
         #look-zone { position: fixed; bottom: 0; right: 0; width: 50%; height: 100%; z-index: 10; }
-        
-        #joy-bound { position: absolute; width: 100px; height: 100px; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; display: none; pointer-events: none; }
+        #joy-bound { position: absolute; width: 100px; height: 100px; background: rgba(255,255,255,0.1); border-radius: 50%; display: none; }
         #joy-stick { position: absolute; top: 25px; left: 25px; width: 50px; height: 50px; background: rgba(255,255,255,0.5); border-radius: 50%; }
 
-        .btn { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); padding: 20px 40px; background: #800; color: white; border: 2px solid #fff; display: none; z-index: 150; font-weight: bold; border-radius: 12px; font-size: 18px; }
-        
+        .btn { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); padding: 20px 40px; background: #800; color: white; border: 2px solid #fff; display: none; z-index: 150; font-weight: bold; border-radius: 12px; }
         #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; display: none; justify-content: center; align-items: center; z-index: 1000; flex-direction: column; color: white; text-align: center; }
-        #instructions { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 500; }
-        #paper { background: #fdf5e6; padding: 25px; width: 80%; max-width: 350px; border: 4px solid #5d4037; color: #3e2723; border-radius: 15px; }
     </style>
 </head>
 <body>
 
-    <div id="instructions">
-        <div id="paper">
-            <h2 style="text-align:center; margin-top:0;">ВЫЖИВАНИЕ</h2>
-            <p>1. <b>Управление:</b> Как в Roblox. Лево — ходить, Право — смотреть.</p>
-            <p>2. <b>Опасность:</b> Если ТВ шумит или в дверь стучат — беги в <b>ШКАФ</b> (коричневый).</p>
-            <p>3. <b>Свет:</b> Если погас — чини <b>ЩИТОК</b> (желтый).</p>
-            <button onclick="startGame()" style="width:100%; padding:15px; background:#5d4037; color:#fff; border:none; border-radius:8px; font-weight:bold; font-size:16px;">НАЧАТЬ</button>
-        </div>
-    </div>
+    <div id="closet-view"></div>
 
     <div id="ui">
         <div id="clock">12:00 AM</div>
@@ -48,22 +40,20 @@
     <button id="action-btn" class="btn">ДЕЙСТВИЕ</button>
 
     <div id="overlay">
-        <h1 id="over-title">...</h1>
-        <button onclick="location.reload()" style="padding:15px 30px; background:#fff; color:#000; border:none; font-weight:bold; border-radius:8px;">ИГРАТЬ СНОВА</button>
+        <h1 id="over-title">ГЛИЧ ТЕБЯ НАШЕЛ</h1>
+        <button onclick="location.reload()" style="padding:15px 30px; background:#fff; color:#000; border:none; font-weight:bold;">ЗАНОВО</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        let scene, camera, renderer, mainLight, backupLight;
-        let isHidden = false, isBlackout = false, gameActive = false;
+        let scene, camera, renderer, mainLight, backupLight, monster;
+        let isHidden = false, isBlackout = false, gameActive = true;
         let moveJoy = {x:0, y:0}, rotY = 0, rotX = 0;
-        let timeLeft = 90, objects = {}, activeAnomaly = false;
+        let timeLeft = 90, objects = {}, activeAnomaly = false, monsterSpeed = 0.02;
 
         function init() {
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-            camera.rotation.order = 'YXZ'; 
-
             renderer = new THREE.WebGLRenderer({antialias: true});
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
@@ -71,10 +61,10 @@
             mainLight = new THREE.PointLight(0xffffff, 1.8, 40);
             mainLight.position.set(0, 5, 0); scene.add(mainLight);
             backupLight = new THREE.PointLight(0xff0000, 0, 20); scene.add(backupLight);
-            scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+            scene.add(new THREE.AmbientLight(0xffffff, 0.2));
 
             // Комната
-            const room = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 10), new THREE.MeshPhongMaterial({color: 0x555555, side: THREE.BackSide}));
+            const room = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 10), new THREE.MeshPhongMaterial({color: 0x333333, side: THREE.BackSide}));
             scene.add(room);
 
             function createObj(w,h,d, x,y,z, col, name) {
@@ -88,16 +78,16 @@
             createObj(1.6, 3.6, 0.05, 0, -1, 4.95, 0x221100, 'ДВЕРЬ');
             createObj(2.2, 1.6, 0.05, -4.95, 1, -3, 0x88ccff, 'ОКНО');
 
-            camera.position.set(0, 0, 3);
-            animate();
-        }
+            // МОНСТР ГЛИЧ
+            const mGeo = new THREE.BoxGeometry(0.8, 2.2, 0.4);
+            const mMat = new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true});
+            monster = new THREE.Mesh(mGeo, mMat);
+            monster.position.set(0, -10, 0); // Прячем под пол
+            scene.add(monster);
 
-        function startGame() {
-            document.getElementById('instructions').style.display = 'none';
-            gameActive = true;
-            init();
             startTimer();
             setInterval(randomAnomaly, 12000);
+            animate();
         }
 
         function startTimer() {
@@ -112,23 +102,43 @@
         }
 
         function randomAnomaly() {
-            if(!gameActive || activeAnomaly || isHidden) return;
+            if(!gameActive || activeAnomaly) return;
             activeAnomaly = true;
             let alertBox = document.getElementById('alert');
             alertBox.style.display = 'block';
             let r = Math.random();
 
-            if(r < 0.25) {
-                alertBox.innerText = "СВЕТ ПОГАС! ЩИТОК!";
+            if(r < 0.3) { // СВЕТ
+                alertBox.innerText = "СВЕТ ПОГАС!";
                 isBlackout = true; mainLight.intensity = 0; backupLight.intensity = 1.8;
                 setTimeout(() => { if(isBlackout) die("ТЫ НЕ УСПЕЛ К ЩИТКУ"); }, 20000);
             } else {
-                alertBox.innerText = r < 0.6 ? "СТУК В ДВЕРЬ! В ШКАФ!" : "ТВ ВКЛЮЧИЛСЯ! В ШКАФ!";
-                if(r >= 0.6) objects['ТЕЛЕВИЗОР'].material.color.set(0xffffff);
+                let type = r < 0.6 ? "DOOR" : "TV";
+                alertBox.innerText = type === "DOOR" ? "КТО-ТО СТУЧИТ..." : "ТВ ВКЛЮЧИЛСЯ...";
+                
+                // Глич появляется в зависимости от события
+                if(type === "DOOR") {
+                    monster.position.set(0, -0.5, 4); // У двери
+                } else {
+                    monster.position.set(0, -0.5, -4); // У ТВ
+                    objects['ТЕЛЕВИЗОР'].material.color.set(0xffffff);
+                }
+
+                // Ждем 10 секунд
                 setTimeout(() => {
-                    if(!isHidden) die("ГЛИЧ НАШЕЛ ТЕБЯ");
-                    else { alertBox.style.display = 'none'; activeAnomaly = false; objects['ТЕЛЕВИЗОР'].material.color.set(0x111111); }
-                }, 10000);
+                    if(!isHidden) {
+                        // НАЧИНАЕТСЯ ОХОТА
+                        alertBox.innerText = "ОН ИДЕТ ЗА ТОБОЙ!";
+                    } else {
+                        // Исчезает через 3 сек, если ты в шкафу
+                        setTimeout(() => {
+                            monster.position.y = -10;
+                            activeAnomaly = false;
+                            alertBox.style.display = 'none';
+                            objects['ТЕЛЕВИЗОР'].material.color.set(0x111111);
+                        }, 3000);
+                    }
+                }, 7000);
             }
         }
 
@@ -137,24 +147,31 @@
             requestAnimationFrame(animate);
 
             if(!isHidden) {
-                // ЛОГИКА ROBLOX / MINECRAFT
-                // Рассчитываем движение на основе угла rotY
-                let forwardX = -Math.sin(rotY);
-                let forwardZ = -Math.cos(rotY);
-                let rightX = Math.cos(rotY);
-                let rightZ = -Math.sin(rotY);
+                let forwardX = -Math.sin(rotY), forwardZ = -Math.cos(rotY);
+                let rightX = Math.cos(rotY), rightZ = -Math.sin(rotY);
+                camera.position.x += (forwardX * moveJoy.y + rightX * moveJoy.x) * 0.12;
+                camera.position.z += (forwardZ * moveJoy.y + rightZ * moveJoy.x) * 0.12;
+            }
 
-                // moveJoy.y - это вперед/назад, moveJoy.x - влево/вправо
-                let vx = (forwardX * moveJoy.y + rightX * moveJoy.x) * 0.12;
-                let vz = (forwardZ * moveJoy.y + rightZ * moveJoy.x) * 0.12;
+            // ЛОГИКА ГЛИЧА (ОХОТА)
+            if(activeAnomaly && !isHidden && monster.position.y > -5) {
+                let dir = new THREE.Vector3().subVectors(camera.position, monster.position).normalize();
+                monster.position.x += dir.x * monsterSpeed;
+                monster.position.z += dir.z * monsterSpeed;
+                
+                // Если игрок двигается (уворачивается), Глич ускоряется
+                if(Math.abs(moveJoy.x) > 0.1 || Math.abs(moveJoy.y) > 0.1) {
+                    monsterSpeed += 0.0005;
+                }
 
-                camera.position.x += vx;
-                camera.position.z += vz;
+                if(monster.position.distanceTo(camera.position) < 1.2) {
+                    die("ГЛИЧ ПОЙМАЛ ТЕБЯ");
+                }
             }
 
             // Границы
-            camera.position.x = Math.max(-4, Math.min(4, camera.position.x));
-            camera.position.z = Math.max(-4, Math.min(4, camera.position.z));
+            camera.position.x = Math.max(-4.2, Math.min(4.2, camera.position.x));
+            camera.position.z = Math.max(-4.2, Math.min(4.2, camera.position.z));
 
             let btn = document.getElementById('action-btn');
             btn.style.display = 'none';
@@ -163,7 +180,15 @@
                 if(camera.position.distanceTo(objects[name].position) < 2) {
                     if(name === 'ШКАФ' && !isHidden) {
                         btn.style.display = 'block'; btn.innerText = "ЗАЛЕЗТЬ В ШКАФ";
-                        btn.onclick = () => { isHidden = true; camera.position.set(objects['ШКАФ'].position.x, -1, objects['ШКАФ'].position.z); };
+                        btn.onclick = () => { 
+                            if(activeAnomaly && monster.position.distanceTo(camera.position) < 3) {
+                                die("ОН ОТКРЫЛ ШКАФ..."); // Не успел спрятаться
+                            } else {
+                                isHidden = true; 
+                                document.getElementById('closet-view').style.display = 'block';
+                                camera.position.set(4, -1, 0); 
+                            }
+                        };
                     }
                     if(name === 'ЩИТОК' && isBlackout) {
                         btn.style.display = 'block'; btn.innerText = "ПОЧИНИТЬ ЩИТОК";
@@ -172,15 +197,15 @@
                 }
             }
             if(isHidden) {
-                btn.style.display = 'block'; btn.innerText = "ВЫЙТИ ИЗ ШКАФА";
-                btn.onclick = () => { isHidden = false; camera.position.set(2, 0, 0); };
+                btn.style.display = 'block'; btn.innerText = "ВЫЙТИ";
+                btn.onclick = () => { isHidden = false; document.getElementById('closet-view').style.display = 'none'; camera.position.set(2.5, 0, 0); };
             }
 
             camera.rotation.set(rotX, rotY, 0);
             renderer.render(scene, camera);
         }
 
-        // ПРАВАЯ ЧАСТЬ (ОБЗОР)
+        // УПРАВЛЕНИЕ
         let lastX, lastY;
         document.getElementById('look-zone').addEventListener('touchmove', (e) => {
             let t = e.touches[0];
@@ -190,35 +215,28 @@
                 rotX = Math.max(-1.4, Math.min(1.4, rotX));
             }
             lastX = t.clientX; lastY = t.clientY;
-        }, {passive: false});
+        }, {passive:false});
         document.getElementById('look-zone').addEventListener('touchend', () => { lastX = null; });
 
-        // ЛЕВАЯ ЧАСТЬ (ДЖОЙСТИК)
         const jBound = document.getElementById('joy-bound');
         const jStick = document.getElementById('joy-stick');
         document.getElementById('move-zone').addEventListener('touchstart', (e) => {
-            let t = e.touches[0];
-            jBound.style.display = 'block';
-            jBound.style.left = (t.clientX - 50) + 'px';
-            jBound.style.top = (t.clientY - 50) + 'px';
+            let t = e.touches[0]; jBound.style.display = 'block';
+            jBound.style.left = (t.clientX - 50) + 'px'; jBound.style.top = (t.clientY - 50) + 'px';
         });
         document.getElementById('move-zone').addEventListener('touchmove', (e) => {
-            let t = e.touches[0];
-            let rect = jBound.getBoundingClientRect();
-            let dx = (t.clientX - (rect.left + 50)) / 50;
-            let dy = (t.clientY - (rect.top + 50)) / 50;
-            let dist = Math.sqrt(dx*dx + dy*dy);
-            if(dist > 1) { dx /= dist; dy /= dist; }
-            jStick.style.transform = `translate(${dx * 25}px, ${dy * 25}px)`;
-            moveJoy = { x: dx, y: -dy }; // Инвертируем Y для правильного "вперед"
+            let t = e.touches[0], rect = jBound.getBoundingClientRect();
+            let dx = (t.clientX - (rect.left + 50))/50, dy = (t.clientY - (rect.top + 50))/50;
+            let d = Math.sqrt(dx*dx+dy*dy); if(d>1){dx/=d;dy/=d;}
+            jStick.style.transform = `translate(${dx*25}px,${dy*25}px)`;
+            moveJoy = {x:dx, y:-dy};
         });
-        document.getElementById('move-zone').addEventListener('touchend', () => {
-            jBound.style.display = 'none';
-            moveJoy = { x: 0, y: 0 };
-        });
+        document.getElementById('move-zone').addEventListener('touchend', () => { jBound.style.display='none'; moveJoy={x:0,y:0}; });
 
         function die(msg) { gameActive = false; document.getElementById('overlay').style.display = 'flex'; document.getElementById('over-title').innerText = msg; }
         function winGame() { gameActive = false; document.getElementById('overlay').style.display = 'flex'; document.getElementById('over-title').innerText = "ПОЗДРАВЛЯЕМ! ТЫ ВЫЖИЛ!"; document.getElementById('over-title').style.color = "lime"; }
+
+        init();
     </script>
 </body>
 </html>
