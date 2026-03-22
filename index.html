@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Arenda 3D: Ultimate Controls</title>
+    <title>Arenda 3D: Fixed View Move</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: 'Courier New', monospace; }
+        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: sans-serif; }
         canvas { display: block; }
         #ui { position: fixed; top: 10px; width: 100%; text-align: center; color: white; z-index: 100; pointer-events: none; }
         #clock { font-size: 24px; color: #f00; font-weight: bold; }
@@ -25,11 +25,10 @@
     <div id="instructions">
         <div id="paper">
             <h2 style="text-align:center">ИНСТРУКЦИЯ</h2>
-            <p>• Левая часть экрана — <b>ходьба</b>.</p>
-            <p>• Правая часть — <b>поворот головы</b>.</p>
-            <p>• Шкаф (коричневый) спасет от ТВ и стука.</p>
-            <p>• Щиток (желтый) чинит свет.</p>
-            <button onclick="startGame()" style="width:100%; padding:15px; background:#800; color:#fff; border:none; font-weight:bold;">ПОЕХАЛИ</button>
+            <p>• Тяни джойстик <b>вверх</b>, чтобы идти туда, куда <b>смотришь</b>.</p>
+            <p>• Прячься в шкаф, если ТВ включился или слышишь стук.</p>
+            <p>• Желтый щиток чинит свет.</p>
+            <button onclick="startGame()" style="width:100%; padding:15px; background:#800; color:#fff; border:none; font-weight:bold;">ПОНЯЛ</button>
         </div>
     </div>
 
@@ -51,7 +50,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         let scene, camera, renderer, mainLight, backupLight;
-        let isMoving = false, isHidden = false, isBlackout = false, gameActive = false;
+        let isHidden = false, isBlackout = false, gameActive = false;
         let moveJoy = {x:0, y:0}, rotY = 0, rotX = 0;
         let timeLeft = 90, objects = {}, activeAnomaly = false;
 
@@ -131,12 +130,17 @@
             requestAnimationFrame(animate);
 
             if(!isHidden) {
-                // ПЛОСКОЕ ДВИЖЕНИЕ (БЕЗ УЧЕТА НАКЛОНА ВВЕРХ/ВНИЗ)
-                let moveX = Math.cos(rotY) * moveJoy.x - Math.sin(rotY) * moveJoy.y;
-                let moveZ = Math.sin(rotY) * moveJoy.x + Math.cos(rotY) * moveJoy.y;
-                
-                camera.position.x += moveX * 0.1;
-                camera.position.z += moveZ * 0.1;
+                // НОВАЯ ЛОГИКА ДВИЖЕНИЯ: Куда смотрим, туда и идем
+                const lookDir = new THREE.Vector3();
+                camera.getWorldDirection(lookDir); // Получаем направление взгляда
+                lookDir.y = 0; // Оставляем только движение по полу
+                lookDir.normalize();
+
+                const sideDir = new THREE.Vector3().crossVectors(camera.up, lookDir).normalize();
+
+                // moveJoy.y — вперед/назад, moveJoy.x — влево/вправо
+                camera.position.addScaledVector(lookDir, -moveJoy.y * 0.12);
+                camera.position.addScaledVector(sideDir, moveJoy.x * 0.12);
             }
 
             camera.position.x = Math.max(-4.2, Math.min(4.2, camera.position.x));
