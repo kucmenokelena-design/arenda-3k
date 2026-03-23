@@ -3,14 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Arenda 3D: Survival</title>
+    <title>Arenda 3D - V 2.4</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: sans-serif; }
         canvas { display: block; }
         #ui { position: fixed; top: 10px; width: 100%; text-align: center; color: white; z-index: 100; pointer-events: none; }
         #clock { font-size: 26px; color: #f00; font-weight: bold; }
-        #alert { font-size: 20px; color: yellow; background: rgba(255,0,0,0.7); display: none; padding: 10px; border-radius: 10px; margin-top: 10px; font-weight: bold; }
+        #alert { font-size: 18px; color: yellow; background: rgba(255,0,0,0.7); display: none; padding: 10px; border-radius: 10px; margin-top: 10px; font-weight: bold; }
         
+        /* ГЛАВНОЕ МЕНЮ */
+        #main-menu, #rules-screen, #pause-menu { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 2000; color: white; }
+        #rules-screen { background: #1a1a1a; display: none; padding: 20px; text-align: center; }
+        #pause-menu { background: rgba(0,0,0,0.8); display: none; }
+
+        .menu-btn { padding: 15px 40px; margin: 10px; background: #900; color: white; border: 2px solid white; border-radius: 10px; font-weight: bold; font-size: 20px; cursor: pointer; }
+        
+        /* ПАУЗА (ТРИ ТОЧКИ) */
+        #pause-btn { position: fixed; top: 15px; right: 15px; width: 40px; height: 40px; background: rgba(255,255,255,0.2); color: white; border-radius: 50%; display: none; z-index: 1500; text-align: center; line-height: 40px; font-weight: bold; font-size: 24px; pointer-events: auto; border: none; }
+
         #closet-view { position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
             background: repeating-linear-gradient(to bottom, transparent, transparent 30px, rgba(0,0,0,0.95) 30px, rgba(0,0,0,0.95) 60px); 
             display: none; z-index: 80; pointer-events: none; border: 15px solid #2a1b10; }
@@ -26,8 +36,29 @@
 </head>
 <body>
 
+    <div id="main-menu">
+        <h1 style="color: red; font-size: 50px;">ARENDA 3D</h1>
+        <button class="menu-btn" onclick="showRules()">ИГРАТЬ</button>
+    </div>
+
+    <div id="rules-screen">
+        <h2>ПРАВИЛА ВЫЖИВАНИЯ</h2>
+        <p>1. <b>ГЛИЧ:</b> Если слышишь стук — беги в шкаф. Не сиди там дольше 15 секунд!</p>
+        <p>2. <b>РАКЕТА:</b> Если ТВ стал красным — выключай свет за 5 секунд!</p>
+        <p>3. <b>ЦЕЛЬ:</b> Продержись до 5:00 AM.</p>
+        <button class="menu-btn" onclick="startGame()">ПОНЯТНО</button>
+    </div>
+
+    <div id="pause-menu">
+        <h1>ПАУЗА</h1>
+        <button class="menu-btn" onclick="resumeGame()">ПРОДОЛЖИТЬ</button>
+        <button class="menu-btn" style="background: #444;" onclick="location.reload()">В МЕНЮ (ВЫЙТИ)</button>
+    </div>
+
+    <button id="pause-btn" onclick="pauseGame()">...</button>
+
     <div id="closet-view"></div>
-    <div id="ui"><div id="clock">12:00 AM</div><div id="alert">РАКЕТНАЯ ОПАСНОСТЬ! ВЫКЛЮЧИ СВЕТ!</div></div>
+    <div id="ui"><div id="clock">12:00 AM</div><div id="alert">РАКЕТНАЯ ОПАСНОСТЬ!</div></div>
     
     <div id="move-zone"><div id="joy-bound"><div id="joy-stick"></div></div></div>
     <div id="look-zone"></div>
@@ -35,15 +66,37 @@
 
     <div id="overlay">
         <h1 id="over-title">КОНЕЦ</h1>
-        <button onclick="location.reload()" style="padding:15px 40px; background:#fff; color:#000; border:none; font-weight:bold; border-radius:10px;">ЗАНОВО</button>
+        <button onclick="location.reload()" class="menu-btn">В МЕНЮ</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         let scene, camera, renderer, monster, mainLight;
-        let isHidden = false, gameActive = true, activeAnomaly = false, isLightOn = true;
+        let isHidden = false, gameActive = false, isPaused = false, activeAnomaly = false, isLightOn = true;
         let moveJoy = {x:0, y:0}, rotY = 0;
-        let timeLeft = 150, objects = {}, closetTimer = 0; // 150 сек = 5 часов по 30 сек
+        let timeLeft = 150, objects = {}, closetTimer = 0;
+
+        function showRules() {
+            document.getElementById('main-menu').style.display = 'none';
+            document.getElementById('rules-screen').style.display = 'flex';
+        }
+
+        function startGame() {
+            document.getElementById('rules-screen').style.display = 'none';
+            document.getElementById('pause-btn').style.display = 'block';
+            gameActive = true;
+            init();
+        }
+
+        function pauseGame() {
+            isPaused = true;
+            document.getElementById('pause-menu').style.display = 'flex';
+        }
+
+        function resumeGame() {
+            isPaused = false;
+            document.getElementById('pause-menu').style.display = 'none';
+        }
 
         function init() {
             scene = new THREE.Scene();
@@ -68,76 +121,57 @@
             createObj(1.3, 0.9, 0.1, 0, 0, -4.95, 0x111111, 'ТВ');
             createObj(0.2, 0.4, 0.1, -4.95, 1, 0, 0xaaaaaa, 'ВЫКЛЮЧАТЕЛЬ');
             createObj(1.6, 3.6, 0.05, 0, -1, 4.95, 0x221100, 'ДВЕРЬ');
+            createObj(2, 0.1, 2, -4, -2.9, 4, 0x111111, 'ПОДВАЛ'); // Люк в подвал на полу
 
             monster = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.2, 0.4), new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true}));
             monster.position.y = -10; scene.add(monster);
 
             camera.position.set(0, 0, 2);
-            startTimer();
-            setInterval(spawnAnomaly, 12000);
+            startLogic();
             animate();
         }
 
-        function startTimer() {
-            let t = setInterval(() => {
-                if(!gameActive) return clearInterval(t);
+        function startLogic() {
+            setInterval(() => {
+                if(!gameActive || isPaused) return;
                 timeLeft--;
-                // 30 сек = 1 час. 150 сек = 5 часов.
-                let hoursPassed = Math.floor((150 - timeLeft) / 30);
-                let h = 12 + hoursPassed;
+                let h = 12 + Math.floor((150 - timeLeft) / 30);
                 if(h > 12) h -= 12;
                 document.getElementById('clock').innerText = `${h}:00 AM`;
                 if(timeLeft <= 0) winGame();
 
-                // Проверка сидения в шкафу
                 if(isHidden) {
                     closetTimer++;
-                    if(closetTimer > 15) die("ГЛИЧ НАШЕЛ ТЕБЯ В ШКАФУ! НЕЛЬЗЯ СИДЕТЬ ТАМ ДОЛГО!");
-                } else {
-                    closetTimer = 0;
-                }
+                    if(closetTimer > 15) die("ГЛИЧ НАШЕЛ ТЕБЯ В ШКАФУ!");
+                } else { closetTimer = 0; }
             }, 1000);
+
+            setInterval(spawnAnomaly, 12000);
         }
 
         function spawnAnomaly() {
-            if(!gameActive || activeAnomaly) return;
+            if(!gameActive || isPaused || activeAnomaly) return;
             activeAnomaly = true;
             let r = Math.random();
             let alertBox = document.getElementById('alert');
             
             if(r < 0.5) { 
-                // КЛАССИКА: СТУК И ГЛИЧ
-                alertBox.style.display = 'block';
-                alertBox.innerText = "В ДВЕРЬ КТО-ТО СТУЧИТ...";
-                alertBox.style.background = "rgba(0,0,0,0.7)";
-                
+                alertBox.style.display = 'block'; alertBox.innerText = "В ДВЕРЬ КТО-ТО СТУЧИТ..."; alertBox.style.background = "rgba(0,0,0,0.7)";
                 setTimeout(() => {
-                    if(!gameActive) return;
+                    if(!gameActive || isPaused) { activeAnomaly = false; return; }
                     monster.position.set(0, -0.5, 4);
                     setTimeout(() => {
-                        if(!isHidden && gameActive) die("ГЛИЧ ЗАМЕТИЛ ТЕБЯ!");
-                        else {
-                            monster.position.y = -10; activeAnomaly = false; alertBox.style.display = 'none';
-                        }
+                        if(!isHidden && gameActive && !isPaused) die("ГЛИЧ ЗАМЕТИЛ ТЕБЯ!");
+                        else { monster.position.y = -10; activeAnomaly = false; alertBox.style.display = 'none'; }
                     }, 5000);
                 }, 5000);
             } else {
-                // РАКЕТНАЯ ОПАСНОСТЬ
-                alertBox.style.display = 'block';
-                alertBox.innerText = "РАКЕТНАЯ ОПАСНОСТЬ! ВЫКЛЮЧИ СВЕТ!";
-                alertBox.style.background = "rgba(255,0,0,0.8)";
+                alertBox.style.display = 'block'; alertBox.innerText = "РАКЕТНАЯ ОПАСНОСТЬ! ВЫКЛЮЧИ СВЕТ!"; alertBox.style.background = "rgba(255,0,0,0.8)";
                 objects['ТВ'].material.color.set(0xff0000);
-
                 setTimeout(() => {
-                    if(isLightOn && gameActive) {
-                        die("ВАС УБИЛА РАКЕТА! ДРОН ЗАМЕТИЛ СВЕТ В ОКНЕ!");
-                    } else if(gameActive) {
-                        // Спаслись
-                        setTimeout(() => {
-                            activeAnomaly = false;
-                            alertBox.style.display = 'none';
-                            objects['ТВ'].material.color.set(0x111111);
-                        }, 2000);
+                    if(isLightOn && gameActive && !isPaused) die("ВАС УБИЛА РАКЕТА!");
+                    else if(gameActive && !isPaused) {
+                        setTimeout(() => { activeAnomaly = false; alertBox.style.display = 'none'; objects['ТВ'].material.color.set(0x111111); }, 2000);
                     }
                 }, 5000);
             }
@@ -146,6 +180,7 @@
         function animate() {
             if(!gameActive) return;
             requestAnimationFrame(animate);
+            if(isPaused) return;
 
             if(!isHidden) {
                 let s = Math.sin(rotY), c = Math.cos(rotY);
@@ -159,7 +194,7 @@
             let btn = document.getElementById('action-btn');
             btn.style.display = 'none';
 
-            // Логика шкафа
+            // Шкаф
             if(camera.position.distanceTo(objects['ШКАФ'].position) < 2 && !isHidden) {
                 btn.style.display = 'block'; btn.innerText = "ЗАЛЕЗТЬ В ШКАФ";
                 btn.onclick = () => { isHidden = true; document.getElementById('closet-view').style.display = 'block'; camera.position.set(4, -1, 0); };
@@ -168,14 +203,16 @@
                 btn.onclick = () => { isHidden = false; document.getElementById('closet-view').style.display = 'none'; camera.position.set(2.5, 0, 0); };
             }
 
-            // Логика выключателя
+            // Свет
             if(camera.position.distanceTo(objects['ВЫКЛЮЧАТЕЛЬ'].position) < 2 && !isHidden) {
-                btn.style.display = 'block';
-                btn.innerText = isLightOn ? "ВЫКЛЮЧИТЬ СВЕТ" : "ВКЛЮЧИТЬ СВЕТ";
-                btn.onclick = () => {
-                    isLightOn = !isLightOn;
-                    mainLight.intensity = isLightOn ? 1.5 : 0.1;
-                };
+                btn.style.display = 'block'; btn.innerText = isLightOn ? "ВЫКЛЮЧИТЬ СВЕТ" : "ВКЛЮЧИТЬ СВЕТ";
+                btn.onclick = () => { isLightOn = !isLightOn; mainLight.intensity = isLightOn ? 1.5 : 0.1; };
+            }
+
+            // Подвал (декор)
+            if(camera.position.distanceTo(objects['ПОДВАЛ'].position) < 2) {
+                btn.style.display = 'block'; btn.innerText = "ПОДВАЛ (В РАЗРАБОТКЕ)";
+                btn.onclick = () => { alert("Этот подвал в разработке..."); };
             }
 
             camera.rotation.set(0, rotY, 0);
@@ -184,19 +221,18 @@
 
         let lastX;
         document.getElementById('look-zone').addEventListener('touchmove', (e) => {
-            let t = e.touches[0];
-            if(lastX) { rotY -= (t.clientX - lastX) * 0.008; }
-            lastX = t.clientX;
+            if(isPaused) return;
+            let t = e.touches[0]; if(lastX) { rotY -= (t.clientX - lastX) * 0.008; } lastX = t.clientX;
         });
         document.getElementById('look-zone').addEventListener('touchend', () => { lastX = null; });
 
-        const jBound = document.getElementById('joy-bound');
-        const jStick = document.getElementById('joy-stick');
+        const jBound = document.getElementById('joy-bound'), jStick = document.getElementById('joy-stick');
         document.getElementById('move-zone').addEventListener('touchstart', (e) => {
-            let t = e.touches[0]; jBound.style.display = 'block';
-            jBound.style.left = (t.clientX - 50) + 'px'; jBound.style.top = (t.clientY - 50) + 'px';
+            if(isPaused) return;
+            let t = e.touches[0]; jBound.style.display = 'block'; jBound.style.left = (t.clientX - 50) + 'px'; jBound.style.top = (t.clientY - 50) + 'px';
         });
         document.getElementById('move-zone').addEventListener('touchmove', (e) => {
+            if(isPaused) return;
             let t = e.touches[0], rect = jBound.getBoundingClientRect();
             let dx = (t.clientX - (rect.left + 50))/50, dy = (t.clientY - (rect.top + 50))/50;
             let d = Math.sqrt(dx*dx+dy*dy); if(d>1){dx/=d;dy/=d;}
@@ -205,10 +241,8 @@
         });
         document.getElementById('move-zone').addEventListener('touchend', () => { jBound.style.display='none'; moveJoy={x:0,y:0}; });
 
-        function die(msg) { gameActive = false; document.getElementById('overlay').style.display = 'flex'; document.getElementById('over-title').innerText = msg; }
-        function winGame() { gameActive = false; document.getElementById('overlay').style.display = 'flex'; document.getElementById('over-title').innerText = "ТЫ ВЫЖИЛ ДО 5 УТРА!"; document.getElementById('over-title').style.color = "lime"; }
-
-        init();
+        function die(msg) { gameActive = false; document.getElementById('overlay').style.display = 'flex'; document.getElementById('over-title').innerText = msg; document.getElementById('pause-btn').style.display = 'none'; }
+        function winGame() { gameActive = false; document.getElementById('overlay').style.display = 'flex'; document.getElementById('over-title').innerText = "ТЫ ВЫЖИЛ ДО 5 УТРА!"; document.getElementById('over-title').style.color = "lime"; document.getElementById('pause-btn').style.display = 'none'; }
     </script>
 </body>
-        </html>
+</html>
